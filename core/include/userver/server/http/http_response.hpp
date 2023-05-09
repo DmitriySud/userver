@@ -9,6 +9,7 @@
 
 #include <userver/concurrent/queue.hpp>
 #include <userver/engine/single_consumer_event.hpp>
+#include <userver/engine/io/common.hpp>
 #include <userver/http/content_type.hpp>
 #include <userver/server/http/http_response_cookie.hpp>
 #include <userver/server/request/response_base.hpp>
@@ -102,7 +103,7 @@ class HttpResponse final : public request::ResponseBase {
 
   /// @cond
   // TODO: server internals. remove from public interface
-  void SendResponse(engine::io::Socket& socket) override;
+  void SendResponse(engine::io::WritableBase& socket) override;
   /// @endcond
 
   void SetStatusServiceUnavailable() override {
@@ -122,8 +123,8 @@ class HttpResponse final : public request::ResponseBase {
   Queue::Producer GetBodyProducer();
 
  private:
-  void SetBodyStreamed(engine::io::Socket& socket, std::string& header);
-  void SetBodyNotstreamed(engine::io::Socket& socket, std::string& header);
+  void SetBodyStreamed(engine::io::WritableBase& socket, std::string& header);
+  void SetBodyNotstreamed(engine::io::WritableBase& socket, std::string& header);
 
   const HttpRequestImpl& request_;
   HttpStatus status_ = HttpStatus::kOk;

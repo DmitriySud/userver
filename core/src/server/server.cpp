@@ -54,6 +54,7 @@ class ServerImpl final {
   void StartPortInfos();
 
   PortInfo main_port_info_, monitor_port_info_;
+  std::optional<PortInfo> ssl_port_info_;
   std::atomic<size_t> handlers_count_{0};
 
   mutable std::shared_timed_mutex stat_mutex_;

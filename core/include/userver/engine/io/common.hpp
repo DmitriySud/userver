@@ -4,6 +4,7 @@
 /// @brief Common definitions and base classes for stream like objects
 
 #include <cstddef>
+#include <initializer_list>
 #include <memory>
 
 #include <userver/engine/deadline.hpp>
@@ -14,6 +15,12 @@ namespace engine::io {
 
 /// File descriptor of an invalid pipe end.
 static constexpr int kInvalidFd = -1;
+
+/// IoData for vector send
+struct IoData final {
+  const void* data;
+  size_t len;
+};
 
 /// @ingroup userver_base_classes
 ///
@@ -51,6 +58,11 @@ class WritableBase {
   /// @brief Sends exactly len bytes of buf.
   /// @note Can return less than len if stream is closed by peer.
   [[nodiscard]] virtual size_t WriteAll(const void* buf, size_t len,
+                                        Deadline deadline) = 0;
+
+  /// @brief Sends exactly len bytes of buf.
+  /// @note Can return less than len if stream is closed by peer.
+  [[nodiscard]] virtual size_t WriteAll(std::initializer_list<IoData>,
                                         Deadline deadline) = 0;
 };
 

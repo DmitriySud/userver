@@ -68,6 +68,18 @@ class PipeWriter final : public WritableBase {
   [[nodiscard]] size_t WriteAll(const void* buf, size_t len,
                                 Deadline deadline) override;
 
+  /// @brief Writes exactly len bytes to the socket.
+  /// @note Can return less than len if socket is closed by peer.
+  [[nodiscard]] size_t WriteAll(std::initializer_list<IoData> list,
+                                Deadline deadline) override {
+      size_t res{0};
+      for (auto&& it : list){
+          res += WriteAll(it.data, it.len, deadline);
+      }
+      return res;
+  }
+
+
   /// File descriptor corresponding to the write end of the pipe.
   int Fd() const;
 

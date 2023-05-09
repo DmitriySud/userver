@@ -3,6 +3,7 @@
 /// @file userver/engine/io/tls_wrapper.hpp
 /// @brief TLS socket wrappers
 
+#include <cstddef>
 #include <string>
 #include <vector>
 
@@ -91,6 +92,17 @@ class [[nodiscard]] TlsWrapper final : public RwBase {
   [[nodiscard]] size_t WriteAll(const void* buf, size_t len,
                                 Deadline deadline) override {
     return SendAll(buf, len, deadline);
+  }
+
+  /// @brief Writes exactly len bytes to the socket.
+  /// @note Can return less than len if socket is closed by peer.
+  [[nodiscard]] size_t WriteAll(std::initializer_list<IoData> list,
+                                Deadline deadline) override {
+      size_t res{0};
+      for (auto&& it : list){
+          res += SendAll(it.data, it.len, deadline);
+      }
+      return res;
   }
 
  private:

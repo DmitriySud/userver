@@ -6,7 +6,7 @@
 #include <fmt/compile.h>
 
 #include <userver/engine/deadline.hpp>
-#include <userver/engine/io/socket.hpp>
+#include <userver/engine/io/common.hpp>
 #include <userver/hostinfo/blocking/get_hostname.hpp>
 #include <userver/http/common_headers.hpp>
 #include <userver/http/content_type.hpp>
@@ -200,7 +200,7 @@ void HttpResponse::SetHeadersEnd() { headers_end_.Send(); }
 
 bool HttpResponse::WaitForHeadersEnd() { return headers_end_.WaitForEvent(); }
 
-void HttpResponse::SendResponse(engine::io::Socket& socket) {
+void HttpResponse::SendResponse(engine::io::WritableBase& socket) {
   // According to https://www.chromium.org/spdy/spdy-whitepaper/
   // "typical header sizes of 700-800 bytes is common"
   // Adjusting it to 1KiB to fit jemalloc size class
@@ -250,7 +250,7 @@ void HttpResponse::SendResponse(engine::io::Socket& socket) {
   }
 }
 
-void HttpResponse::SetBodyNotstreamed(engine::io::Socket& socket,
+void HttpResponse::SetBodyNotstreamed(engine::io::WritableBase& socket,
                                       std::string& header) {
   const bool is_body_forbidden = IsBodyForbiddenForStatus(status_);
   const bool is_head_request = request_.GetOrigMethod() == HttpMethod::kHead;
@@ -271,25 +271,25 @@ void HttpResponse::SetBodyNotstreamed(engine::io::Socket& socket,
 
   ssize_t sent_bytes = 0;
   if (!is_head_request && !is_body_forbidden) {
-    sent_bytes = socket.SendAll(
+    sent_bytes = socket.WriteAll(
         {{header.data(), header.size()}, {data.data(), data.size()}},
         engine::Deadline{});
   } else {
     sent_bytes =
-        socket.SendAll(header.data(), header.size(), engine::Deadline{});
+        socket.WriteAll(header.data(), header.size(), engine::Deadline{});
   }
 
   SetSentTime(std::chrono::steady_clock::now());
   SetSent(sent_bytes);
 }
 
-void HttpResponse::SetBodyStreamed(engine::io::Socket& socket,
+void HttpResponse::SetBodyStreamed(engine::io::WritableBase& socket,
                                    std::string& header) {
   impl::OutputHeader(
       header, USERVER_NAMESPACE::http::headers::kTransferEncoding, "chunked");
 
   // send HTTP headers
-  size_t sent_bytes = socket.SendAll(header.data(), header.size(), {});
+  size_t sent_bytes = socket.WriteAll(header.data(), header.size(), {});
   std::string().swap(header);  // free memory before time consuming operation
 
   // Transmit HTTP response body
@@ -301,14 +301,14 @@ void HttpResponse::SetBodyStreamed(engine::io::Socket& socket,
     }
 
     auto size = fmt::format("\r\n{:x}\r\n", body_part.size());
-    sent_bytes += socket.SendAll(
+    sent_bytes += socket.WriteAll(
         {{size.data(), size.size()}, {body_part.data(), body_part.size()}},
         engine::Deadline{});
   }
 
   const constexpr std::string_view terminating_chunk{"\r\n0\r\n\r\n"};
   sent_bytes +=
-      socket.SendAll(terminating_chunk.data(), terminating_chunk.size(), {});
+      socket.WriteAll(terminating_chunk.data(), terminating_chunk.size(), {});
 
   // TODO: exceptions?
   body_stream_producer_.reset();
