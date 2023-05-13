@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <array>
+#include <memory>
 #include <stdexcept>
 #include <system_error>
 #include <vector>
@@ -18,27 +19,42 @@
 #include <userver/server/request/request_config.hpp>
 #include <userver/utils/assert.hpp>
 #include <userver/utils/scope_guard.hpp>
+#include "server/net/tls_settings.hpp"
+#include "userver/engine/io/common.hpp"
+#include "userver/engine/io/socket.hpp"
+#include "userver/engine/io/tls_wrapper.hpp"
 
 USERVER_NAMESPACE_BEGIN
 
 namespace server::net {
 
+std::unique_ptr<engine::io::RwBase> WrapRwBase(const TlsSettings* tls_settings,
+                                               engine::io::Socket&& socket) {
+  if (tls_settings) {
+    return std::make_unique<engine::io::TlsWrapper>(
+        engine::io::TlsWrapper::StartTlsServer(std::move(socket),
+                                               tls_settings->GetCertificate(),
+                                               tls_settings->GetKey(), {}));
+  }
+  return std::make_unique<engine::io::Socket>(std::move(socket));
+}
+
 std::shared_ptr<Connection> Connection::Create(
     engine::TaskProcessor& task_processor, const ConnectionConfig& config,
     const request::HttpRequestConfig& handler_defaults_config,
-    engine::io::Socket peer_socket,
+    TlsSettings* tls_settings, engine::io::Socket peer_socket,
     const http::RequestHandlerBase& request_handler,
     std::shared_ptr<Stats> stats,
     request::ResponseDataAccounter& data_accounter) {
   return std::make_shared<Connection>(
-      task_processor, config, handler_defaults_config, std::move(peer_socket),
+      task_processor, config, handler_defaults_config, tls_settings, std::move(peer_socket),
       request_handler, std::move(stats), data_accounter, EmplaceEnabler{});
 }
 
 Connection::Connection(
     engine::TaskProcessor& task_processor, const ConnectionConfig& config,
     const request::HttpRequestConfig& handler_defaults_config,
-    engine::io::Socket peer_socket,
+    TlsSettings* tls_settings, engine::io::Socket peer_socket,
     const http::RequestHandlerBase& request_handler,
     std::shared_ptr<Stats> stats,
     request::ResponseDataAccounter& data_accounter, EmplaceEnabler)
@@ -48,11 +64,11 @@ Connection::Connection(
       request_handler_(request_handler),
       stats_(std::move(stats)),
       data_accounter_(data_accounter),
-      peer_socket_(std::move(peer_socket)),
-      remote_address_(peer_socket_.Getpeername().PrimaryAddressString()),
+      peer_name_(peer_socket.Getpeername()),
+      rw_interface_(WrapRwBase(tls_settings, std::move(peer_socket))),
+      remote_address_(peer_name_.PrimaryAddressString()),
       request_tasks_(Queue::Create()) {
-  LOG_DEBUG() << "Incoming connection from " << peer_socket_.Getpeername()
-              << ", fd " << Fd();
+  LOG_DEBUG() << "Incoming connection from " << peer_name_ << ", fd " << Fd();
 
   ++stats_->active_connections;
   ++stats_->connections_created;
@@ -101,7 +117,7 @@ void Connection::Start() {
 
 void Connection::Stop() { response_sender_task_.RequestCancel(); }
 
-int Connection::Fd() const { return peer_socket_.Fd(); }
+int Connection::Fd() const { return rw_interface_.Fd(); }
 
 void Connection::Shutdown() noexcept {
   UASSERT(response_sender_task_.IsValid());
@@ -110,7 +126,7 @@ void Connection::Shutdown() noexcept {
                  "requests) for fd "
               << Fd();
 
-  peer_socket_.Close();  // should not throw
+  rw_interface_.Close();  // should not throw
 
   --stats_->active_connections;
   ++stats_->connections_closed;
@@ -168,14 +184,14 @@ void Connection::ListenForRequests(Queue::Producer producer) noexcept {
       //
       // So instead we just do 2. and 3., shaving off a whole recv syscall
       if (last_bytes_read != buf.size()) {
-        is_readable = peer_socket_.WaitReadable(deadline);
+        is_readable = rw_interface_->WaitReadable(deadline);
       }
 
       last_bytes_read =
-          is_readable ? peer_socket_.RecvSome(buf.data(), buf.size(), deadline)
+          is_readable ? rw_interface_->ReadSome(buf.data(), buf.size(), deadline)
                       : 0;
       if (!last_bytes_read) {
-        LOG_TRACE() << "Peer " << peer_socket_.Getpeername() << " on fd "
+        LOG_TRACE() << "Peer " << peer_name_ << " on fd "
                     << Fd() << " closed connection or the connection timed out";
 
         // RFC7230 does not specify rules for connections half-closed from
@@ -188,11 +204,11 @@ void Connection::ListenForRequests(Queue::Producer producer) noexcept {
         return;
       }
       LOG_TRACE() << "Received " << last_bytes_read << " byte(s) from "
-                  << peer_socket_.Getpeername() << " on fd " << Fd();
+                  << peer_name_ << " on fd " << Fd();
 
       if (!request_parser.Parse(buf.data(), last_bytes_read)) {
-        LOG_DEBUG() << "Malformed request from " << peer_socket_.Getpeername()
-                    << " on fd " << Fd();
+        LOG_DEBUG() << "Malformed request from " << peer_name_ << " on fd "
+                    << Fd();
 
         // Stop accepting new requests, send previous answers.
         is_accepting_requests_ = false;
@@ -213,13 +229,11 @@ void Connection::ListenForRequests(Queue::Producer producer) noexcept {
         ex.Code().value() == static_cast<int>(std::errc::connection_reset)
             ? logging::Level::kWarning
             : logging::Level::kError;
-    LOG(log_level) << "I/O error while receiving from peer "
-                   << peer_socket_.Getpeername() << " on fd " << Fd() << ": "
-                   << ex;
+    LOG(log_level) << "I/O error while receiving from peer " << peer_name_
+                   << " on fd " << Fd() << ": " << ex;
   } catch (const std::exception& ex) {
-    LOG_ERROR() << "Error while receiving from peer "
-                << peer_socket_.Getpeername() << " on fd " << Fd() << ": "
-                << ex;
+    LOG_ERROR() << "Error while receiving from peer " << peer_name_ << " on fd "
+                << Fd() << ": " << ex;
   }
 }
 
@@ -305,10 +319,10 @@ void Connection::SendResponse(request::RequestBase& request) {
   auto& response = request.GetResponse();
   UASSERT(!response.IsSent());
   request.SetStartSendResponseTime();
-  if (is_response_chain_valid_ && peer_socket_) {
+  if (is_response_chain_valid_ && rw_interface_) {
     try {
       // Might be a stream reading or a fully constructed response
-      response.SendResponse(peer_socket_);
+      response.SendResponse(*rw_interface_);
     } catch (const engine::io::IoSystemError& ex) {
       // working with raw values because std::errc compares error_category
       // default_error_category() fixed only in GCC 9.1 (PR libstdc++/60555)

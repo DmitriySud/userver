@@ -17,7 +17,9 @@
 #include <userver/engine/task/task_with_result.hpp>
 #include <userver/server/request/request_base.hpp>
 #include <userver/server/request/request_config.hpp>
+#include "server/net/tls_settings.hpp"
 #include "userver/engine/io/common.hpp"
+#include "userver/engine/io/sockaddr.hpp"
 
 USERVER_NAMESPACE_BEGIN
 
@@ -34,6 +36,7 @@ class Connection final : public std::enable_shared_from_this<Connection> {
   static std::shared_ptr<Connection> Create(
       engine::TaskProcessor& task_processor, const ConnectionConfig& config,
       const request::HttpRequestConfig& handler_defaults_config,
+      TlsSettings* tls_settings,
       engine::io::Socket peer_socket,
       const http::RequestHandlerBase& request_handler,
       std::shared_ptr<Stats> stats,
@@ -43,6 +46,7 @@ class Connection final : public std::enable_shared_from_this<Connection> {
   Connection(engine::TaskProcessor& task_processor,
              const ConnectionConfig& config,
              const request::HttpRequestConfig& handler_defaults_config,
+              TlsSettings* tls_settings,
              engine::io::Socket peer_socket,
              const http::RequestHandlerBase& request_handler,
              std::shared_ptr<Stats> stats,
@@ -79,7 +83,8 @@ class Connection final : public std::enable_shared_from_this<Connection> {
   const http::RequestHandlerBase& request_handler_;
   const std::shared_ptr<Stats> stats_;
   request::ResponseDataAccounter& data_accounter_;
-  engine::io::Socket peer_socket_;
+  engine::io::Sockaddr peer_name_;
+  std::unique_ptr<engine::io::RwBase> rw_interface_;
   const std::string remote_address_;
 
   std::shared_ptr<Queue> request_tasks_;
