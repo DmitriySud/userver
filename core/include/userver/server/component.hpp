@@ -38,7 +38,7 @@ namespace components {
 /// ---- | ----------- | -------------
 /// logger_access | set to logger name from components::Logging component to write access logs into it; do not set to avoid writing access logs  | -
 /// logger_access_tskv | set to logger name from components::Logging component to write access logs in TSKV format into it; do not set to avoid writing access logs | -
-/// max_response_size_in_flight | set it to the size of response in bytes and the component will drop bigger responses from handlers that allow trottling | -
+/// max_response_size_in_flight | set it to the size of response in bytes and the component will drop bigger responses from handlers that allow throttling | -
 /// server-name | value to send in HTTP Server header | value from utils::GetUserverIdentifier()
 /// listener | (*required*) *see below* | -
 /// listener-monitor | *see below* | -
@@ -67,7 +67,7 @@ namespace components {
 /// handler-defaults.parse_args_from_body | optional field to parse request according to x-www-form-urlencoded rules and make parameters accessible as query parameters | false
 /// handler-defaults.set_tracing_headers | whether to set http tracing headers (X-YaTraceId, X-YaSpanId, X-RequestId) | true
 /// connection.in_buffer_size | size of the buffer to preallocate for request receive: bigger values use more RAM and less CPU | 32 * 1024
-/// connection.requests_queue_size_threshold | drop requests from handlers that allow trottling if there's more pending requests than allowed by this value | 100
+/// connection.requests_queue_size_threshold | drop requests from handlers that allow throttling if there's more pending requests than allowed by this value | 100
 /// connection.keepalive_timeout | timeout in seconds to drop connection if there's not data received from it | 600
 /// shards | how many concurrent tasks harvest data from a single socket; do not set if not sure what it is doing | -
 

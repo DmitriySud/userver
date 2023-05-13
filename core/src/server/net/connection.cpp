@@ -45,10 +45,10 @@ Connection::Connection(
     : task_processor_(task_processor),
       config_(config),
       handler_defaults_config_(handler_defaults_config),
-      peer_socket_(std::move(peer_socket)),
       request_handler_(request_handler),
       stats_(std::move(stats)),
       data_accounter_(data_accounter),
+      peer_socket_(std::move(peer_socket)),
       remote_address_(peer_socket_.Getpeername().PrimaryAddressString()),
       request_tasks_(Queue::Create()) {
   LOG_DEBUG() << "Incoming connection from " << peer_socket_.Getpeername()

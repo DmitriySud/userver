@@ -12,7 +12,7 @@ USERVER_NAMESPACE_BEGIN
 
 namespace server::net {
 
-class Listener final {
+class Listener {
  public:
   Listener(std::shared_ptr<EndpointInfo> endpoint_info,
            engine::TaskProcessor& task_processor,
@@ -24,11 +24,11 @@ class Listener final {
   Listener& operator=(const Listener&) = delete;
   Listener& operator=(Listener&&) = default;
 
-  void Start();
+  virtual void Start();
 
-  Stats GetStats() const;
+  virtual Stats GetStats() const;
 
- private:
+ protected:
   engine::TaskProcessor* task_processor_;
   std::shared_ptr<EndpointInfo> endpoint_info_;
   request::ResponseDataAccounter* data_accounter_;

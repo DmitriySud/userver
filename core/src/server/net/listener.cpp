@@ -22,11 +22,6 @@ Listener::~Listener() {
   LOG_TRACE() << "Destroyed listener";
 }
 
-void Listener::Start() {
-  impl_ = std::make_unique<ListenerImpl>(*task_processor_, endpoint_info_,
-                                         *data_accounter_);
-}
-
 Stats Listener::GetStats() const {
   if (impl_) return impl_->GetStats();
   return Stats{};

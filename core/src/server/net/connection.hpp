@@ -17,6 +17,7 @@
 #include <userver/engine/task/task_with_result.hpp>
 #include <userver/server/request/request_base.hpp>
 #include <userver/server/request/request_config.hpp>
+#include "userver/engine/io/common.hpp"
 
 USERVER_NAMESPACE_BEGIN
 
@@ -75,10 +76,10 @@ class Connection final : public std::enable_shared_from_this<Connection> {
   engine::TaskProcessor& task_processor_;
   const ConnectionConfig& config_;
   const request::HttpRequestConfig& handler_defaults_config_;
-  engine::io::Socket peer_socket_;
   const http::RequestHandlerBase& request_handler_;
   const std::shared_ptr<Stats> stats_;
   request::ResponseDataAccounter& data_accounter_;
+  engine::io::Socket peer_socket_;
   const std::string remote_address_;
 
   std::shared_ptr<Queue> request_tasks_;

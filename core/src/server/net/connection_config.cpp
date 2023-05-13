@@ -18,6 +18,7 @@ ConnectionConfig Parse(const yaml_config::YamlConfig& value,
   config.keepalive_timeout =
       value["keepalive_timeout"].As<std::chrono::seconds>(
           config.keepalive_timeout);
+  config.is_ssl = value["is_ssl"].As<bool>(false);
 
   return config;
 }

@@ -1,3 +1,4 @@
+#include <memory>
 #include <userver/server/server.hpp>
 
 #include <atomic>
@@ -16,10 +17,24 @@
 #include <userver/engine/sleep.hpp>
 #include <userver/logging/log.hpp>
 #include <userver/utils/assert.hpp>
+#include "server/net/tls_settings.hpp"
+#include "userver/storages/secdist/component.hpp"
+#include "userver/utils/trivial_map.hpp"
 
 USERVER_NAMESPACE_BEGIN
 
 namespace server {
+
+namespace {
+  enum class PortType { kMonitor, kMain, kSecure };
+
+  constexpr utils::TrivialBiMap kPortTypeNamesMap = [](auto selector) {
+    return selector()
+        .Case(PortType::kMain, "main")
+        .Case(PortType::kMonitor, "monitor")
+        .Case(PortType::kSecure, "secure");
+  };
+}
 
 class ServerImpl final {
  public:
@@ -33,11 +48,12 @@ class ServerImpl final {
 
   std::unique_ptr<RequestsView> requests_view_;
 
+
   struct PortInfo {
     std::unique_ptr<http::HttpRequestHandler> request_handler_;
     std::shared_ptr<net::EndpointInfo> endpoint_info_;
     request::ResponseDataAccounter data_accounter_;
-    std::vector<net::Listener> listeners_;
+    std::vector<std::unique_ptr<net::Listener>> listeners_;
 
     void Start();
 
@@ -49,12 +65,11 @@ class ServerImpl final {
   static void InitPortInfo(
       PortInfo& info, const ServerConfig& config,
       const net::ListenerConfig& listener_config,
-      const components::ComponentContext& component_context, bool is_monitor);
+      const components::ComponentContext& component_context, PortType port_type);
 
   void StartPortInfos();
 
-  PortInfo main_port_info_, monitor_port_info_;
-  std::optional<PortInfo> ssl_port_info_;
+  PortInfo main_port_info_, monitor_port_info_, tls_port_info_;
   std::atomic<size_t> handlers_count_{0};
 
   mutable std::shared_timed_mutex stat_mutex_;
@@ -92,7 +107,7 @@ void ServerImpl::PortInfo::Start() {
   UASSERT(request_handler_);
   request_handler_->DisableAddHandler();
   for (auto& listener : listeners_) {
-    listener.Start();
+    listener->Start();
   }
 }
 
@@ -103,14 +118,18 @@ ServerImpl::ServerImpl(ServerConfig config,
   LOG_INFO() << "Creating server";
 
   InitPortInfo(main_port_info_, config_, config_.listener, component_context,
-               false);
+               PortType::kMain);
   if (config_.max_response_size_in_flight) {
     main_port_info_.data_accounter_.SetMaxLevel(
         *config_.max_response_size_in_flight);
   }
   if (config_.monitor_listener) {
     InitPortInfo(monitor_port_info_, config_, *config_.monitor_listener,
-                 component_context, true);
+                 component_context, PortType::kMonitor);
+  }
+  if (config_.tls_listener) {
+    InitPortInfo(monitor_port_info_, config_, *config_.tls_listener,
+                 component_context, PortType::kSecure);
   }
 
   LOG_INFO() << "Server is created";
@@ -128,21 +147,22 @@ void ServerImpl::Stop() {
   LOG_INFO() << "Stopping server";
   main_port_info_.Stop();
   monitor_port_info_.Stop();
+  tls_port_info_.Stop();
   LOG_INFO() << "Stopped server";
 }
 
 void ServerImpl::InitPortInfo(
     PortInfo& info, const ServerConfig& config,
     const net::ListenerConfig& listener_config,
-    const components::ComponentContext& component_context, bool is_monitor) {
-  LOG_INFO() << "Creating listener" << (is_monitor ? " (monitor)" : "");
+    const components::ComponentContext& component_context, PortType port_type) {
+  LOG_INFO() << "Creating listener (" << kPortTypeNamesMap.TryFind(port_type)<< ")";
 
   engine::TaskProcessor& task_processor =
       component_context.GetTaskProcessor(listener_config.task_processor);
 
   info.request_handler_ = std::make_unique<http::HttpRequestHandler>(
       component_context, config.logger_access, config.logger_access_tskv,
-      is_monitor, config.server_name);
+      port_type == PortType::kMonitor, config.server_name);
 
   info.endpoint_info_ = std::make_shared<net::EndpointInfo>(
       listener_config, *info.request_handler_);
@@ -150,9 +170,18 @@ void ServerImpl::InitPortInfo(
   const auto& event_thread_pool = task_processor.EventThreadPool();
   size_t listener_shards = listener_config.shards ? *listener_config.shards
                                                   : event_thread_pool.GetSize();
+
+  auto* secdist_component =
+      component_context.FindComponentOptional<components::Secdist>();
   while (listener_shards--) {
-    info.listeners_.emplace_back(info.endpoint_info_, task_processor,
-                                 info.data_accounter_);
+    if (port_type == PortType::kSecure){
+      const auto& settings = secdist_component->Get().Get<net::TlsSettings>();
+      info.listeners_.emplace_back(info.endpoint_info_, task_processor,
+                                   info.data_accounter_, settings);
+    } else{
+      info.listeners_.emplace_back(info.endpoint_info_, task_processor,
+                                   info.data_accounter_);
+    }
   }
 }
 
