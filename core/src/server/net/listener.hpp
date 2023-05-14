@@ -6,17 +6,19 @@
 
 #include "endpoint_info.hpp"
 #include "listener_impl.hpp"
+#include "tls_settings.hpp"
 #include "stats.hpp"
 
 USERVER_NAMESPACE_BEGIN
 
 namespace server::net {
 
-class Listener {
+class Listener final {
  public:
   Listener(std::shared_ptr<EndpointInfo> endpoint_info,
            engine::TaskProcessor& task_processor,
-           request::ResponseDataAccounter& data_accounter);
+           request::ResponseDataAccounter& data_accounter,
+           const TlsSettings* tls_settings);
   ~Listener();
 
   Listener(const Listener&) = delete;
@@ -24,14 +26,15 @@ class Listener {
   Listener& operator=(const Listener&) = delete;
   Listener& operator=(Listener&&) = default;
 
-  virtual void Start();
+  void Start();
 
-  virtual Stats GetStats() const;
+  Stats GetStats() const;
 
- protected:
+ private:
   engine::TaskProcessor* task_processor_;
   std::shared_ptr<EndpointInfo> endpoint_info_;
   request::ResponseDataAccounter* data_accounter_;
+  const TlsSettings* tls_settings_;
 
   std::unique_ptr<ListenerImpl> impl_;
 };

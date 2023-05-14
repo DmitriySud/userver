@@ -42,7 +42,7 @@ std::unique_ptr<engine::io::RwBase> WrapRwBase(const TlsSettings* tls_settings,
 std::shared_ptr<Connection> Connection::Create(
     engine::TaskProcessor& task_processor, const ConnectionConfig& config,
     const request::HttpRequestConfig& handler_defaults_config,
-    TlsSettings* tls_settings, engine::io::Socket peer_socket,
+    const TlsSettings* tls_settings, engine::io::Socket peer_socket,
     const http::RequestHandlerBase& request_handler,
     std::shared_ptr<Stats> stats,
     request::ResponseDataAccounter& data_accounter) {
@@ -54,7 +54,7 @@ std::shared_ptr<Connection> Connection::Create(
 Connection::Connection(
     engine::TaskProcessor& task_processor, const ConnectionConfig& config,
     const request::HttpRequestConfig& handler_defaults_config,
-    TlsSettings* tls_settings, engine::io::Socket peer_socket,
+    const TlsSettings* tls_settings, engine::io::Socket peer_socket,
     const http::RequestHandlerBase& request_handler,
     std::shared_ptr<Stats> stats,
     request::ResponseDataAccounter& data_accounter, EmplaceEnabler)
@@ -65,6 +65,7 @@ Connection::Connection(
       stats_(std::move(stats)),
       data_accounter_(data_accounter),
       peer_name_(peer_socket.Getpeername()),
+      peer_fd_(peer_socket.Fd()),
       rw_interface_(WrapRwBase(tls_settings, std::move(peer_socket))),
       remote_address_(peer_name_.PrimaryAddressString()),
       request_tasks_(Queue::Create()) {
@@ -117,7 +118,7 @@ void Connection::Start() {
 
 void Connection::Stop() { response_sender_task_.RequestCancel(); }
 
-int Connection::Fd() const { return rw_interface_.Fd(); }
+int Connection::Fd() const { return peer_fd_; }
 
 void Connection::Shutdown() noexcept {
   UASSERT(response_sender_task_.IsValid());
@@ -126,7 +127,14 @@ void Connection::Shutdown() noexcept {
                  "requests) for fd "
               << Fd();
 
-  rw_interface_.Close();  // should not throw
+  auto* sock_ptr = dynamic_cast<engine::io::Socket*>(rw_interface_.get());
+  if (sock_ptr){
+    sock_ptr->Close();
+  } else {
+    auto* wrapper_ptr = dynamic_cast<engine::io::TlsWrapper*>(rw_interface_.get());
+    auto sock = wrapper_ptr->StopTls({});
+    sock.Close();
+  }
 
   --stats_->active_connections;
   ++stats_->connections_closed;

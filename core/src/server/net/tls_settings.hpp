@@ -10,7 +10,7 @@ USERVER_NAMESPACE_BEGIN
 
 namespace server::net {
 
-class TlsSettings {
+class TlsSettings final {
 public:
   TlsSettings(const formats::json::Value& doc);
 

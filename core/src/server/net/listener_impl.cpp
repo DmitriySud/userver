@@ -17,6 +17,7 @@
 #include <userver/fs/blocking/write.hpp>
 #include <userver/logging/log.hpp>
 #include <userver/utils/assert.hpp>
+#include "server/net/tls_settings.hpp"
 
 USERVER_NAMESPACE_BEGIN
 
@@ -24,11 +25,13 @@ namespace server::net {
 
 ListenerImpl::ListenerImpl(engine::TaskProcessor& task_processor,
                            std::shared_ptr<EndpointInfo> endpoint_info,
-                           request::ResponseDataAccounter& data_accounter)
+                           request::ResponseDataAccounter& data_accounter,
+                           const TlsSettings* tls_settings)
     : task_processor_(task_processor),
       endpoint_info_(std::move(endpoint_info)),
       stats_(std::make_shared<Stats>()),
       data_accounter_(data_accounter),
+      tls_settings_(tls_settings),
       socket_listener_task_(engine::CriticalAsyncNoSpan(
           task_processor_,
           [this](engine::io::Socket&& request_socket) {
@@ -92,7 +95,7 @@ void ListenerImpl::SetupConnection(engine::io::Socket peer_socket) {
 
   auto connection_ptr = Connection::Create(
       task_processor_, endpoint_info_->listener_config.connection_config,
-      endpoint_info_->listener_config.handler_defaults, std::move(peer_socket),
+      endpoint_info_->listener_config.handler_defaults, tls_settings_, std::move(peer_socket),
       endpoint_info_->request_handler, stats_, data_accounter_);
 
   connection_ptr->SetCloseCb([endpoint_info = endpoint_info_]() {

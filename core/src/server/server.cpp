@@ -1,4 +1,5 @@
 #include <memory>
+#include <optional>
 #include <userver/server/server.hpp>
 
 #include <atomic>
@@ -53,7 +54,7 @@ class ServerImpl final {
     std::unique_ptr<http::HttpRequestHandler> request_handler_;
     std::shared_ptr<net::EndpointInfo> endpoint_info_;
     request::ResponseDataAccounter data_accounter_;
-    std::vector<std::unique_ptr<net::Listener>> listeners_;
+    std::vector<net::Listener> listeners_;
 
     void Start();
 
@@ -62,14 +63,15 @@ class ServerImpl final {
 
   void Stop();
 
-  static void InitPortInfo(
+  void InitPortInfo(
       PortInfo& info, const ServerConfig& config,
       const net::ListenerConfig& listener_config,
-      const components::ComponentContext& component_context, PortType port_type);
+      const components::ComponentContext& component_context, PortType port_type) const;
 
   void StartPortInfos();
 
   PortInfo main_port_info_, monitor_port_info_, tls_port_info_;
+  std::unique_ptr<net::TlsSettings> tls_settings_;
   std::atomic<size_t> handlers_count_{0};
 
   mutable std::shared_timed_mutex stat_mutex_;
@@ -107,7 +109,7 @@ void ServerImpl::PortInfo::Start() {
   UASSERT(request_handler_);
   request_handler_->DisableAddHandler();
   for (auto& listener : listeners_) {
-    listener->Start();
+    listener.Start();
   }
 }
 
@@ -128,6 +130,11 @@ ServerImpl::ServerImpl(ServerConfig config,
                  component_context, PortType::kMonitor);
   }
   if (config_.tls_listener) {
+    auto* secdist_component =
+        component_context.FindComponentOptional<components::Secdist>();
+    tls_settings_ = std::make_unique<net::TlsSettings>(
+        secdist_component->Get().Get<net::TlsSettings>());
+
     InitPortInfo(monitor_port_info_, config_, *config_.tls_listener,
                  component_context, PortType::kSecure);
   }
@@ -154,7 +161,7 @@ void ServerImpl::Stop() {
 void ServerImpl::InitPortInfo(
     PortInfo& info, const ServerConfig& config,
     const net::ListenerConfig& listener_config,
-    const components::ComponentContext& component_context, PortType port_type) {
+    const components::ComponentContext& component_context, PortType port_type) const {
   LOG_INFO() << "Creating listener (" << kPortTypeNamesMap.TryFind(port_type)<< ")";
 
   engine::TaskProcessor& task_processor =
@@ -171,16 +178,13 @@ void ServerImpl::InitPortInfo(
   size_t listener_shards = listener_config.shards ? *listener_config.shards
                                                   : event_thread_pool.GetSize();
 
-  auto* secdist_component =
-      component_context.FindComponentOptional<components::Secdist>();
   while (listener_shards--) {
     if (port_type == PortType::kSecure){
-      const auto& settings = secdist_component->Get().Get<net::TlsSettings>();
       info.listeners_.emplace_back(info.endpoint_info_, task_processor,
-                                   info.data_accounter_, settings);
+                                   info.data_accounter_, tls_settings_.get());
     } else{
       info.listeners_.emplace_back(info.endpoint_info_, task_processor,
-                                   info.data_accounter_);
+                                   info.data_accounter_, nullptr);
     }
   }
 }

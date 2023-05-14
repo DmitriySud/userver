@@ -2,6 +2,7 @@
 
 #include <userver/engine/async.hpp>
 #include <userver/logging/log.hpp>
+#include "server/net/tls_settings.hpp"
 
 USERVER_NAMESPACE_BEGIN
 
@@ -9,10 +10,17 @@ namespace server::net {
 
 Listener::Listener(std::shared_ptr<EndpointInfo> endpoint_info,
                    engine::TaskProcessor& task_processor,
-                   request::ResponseDataAccounter& data_accounter)
+                   request::ResponseDataAccounter& data_accounter,
+                   const TlsSettings* tls_settings)
     : task_processor_(&task_processor),
       endpoint_info_(std::move(endpoint_info)),
-      data_accounter_(&data_accounter) {}
+      data_accounter_(&data_accounter), 
+      tls_settings_(tls_settings){}
+
+void Listener::Start() {
+  impl_ = std::make_unique<ListenerImpl>(*task_processor_, endpoint_info_,
+                                         *data_accounter_, tls_settings_);
+}
 
 Listener::~Listener() {
   if (!impl_) return;

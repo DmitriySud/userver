@@ -11,6 +11,7 @@
 
 #include "connection.hpp"
 #include "endpoint_info.hpp"
+#include "server/net/tls_settings.hpp"
 #include "stats.hpp"
 
 USERVER_NAMESPACE_BEGIN
@@ -21,7 +22,8 @@ class ListenerImpl final {
  public:
   ListenerImpl(engine::TaskProcessor& task_processor,
                std::shared_ptr<EndpointInfo> endpoint_info,
-               request::ResponseDataAccounter& data_accounter);
+               request::ResponseDataAccounter& data_accounter, 
+               const TlsSettings* tls_settings);
   ~ListenerImpl();
 
   Stats GetStats() const;
@@ -42,6 +44,7 @@ class ListenerImpl final {
 
   std::shared_ptr<Stats> stats_;
   request::ResponseDataAccounter& data_accounter_;
+  const TlsSettings* tls_settings_;
 
   engine::TaskWithResult<void> socket_listener_task_;
 
