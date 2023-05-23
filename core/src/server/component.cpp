@@ -68,7 +68,7 @@ properties:
         description: set to logger name from components::Logging component to write access logs in TSKV format into it; do not set to avoid writing access logs
     max_response_size_in_flight:
         type: integer
-        description: set it to the size of response in bytes and the component will drop bigger responses from handlers that allow trottling
+        description: set it to the size of response in bytes and the component will drop bigger responses from handlers that allow throttling
     server-name:
         type: string
         description: value to send in HTTP Server header
@@ -129,12 +129,73 @@ properties:
                         defaultDescription: 32 * 1024
                     requests_queue_size_threshold:
                         type: integer
-                        description: drop requests from handlers that allow trottling if there's more pending requests than allowed by this value
+                        description: drop requests from handlers that allow throttling if there's more pending requests than allowed by this value
                         defaultDescription: 100
                     keepalive_timeout:
                         type: integer
                         description: timeout in seconds to drop connection if there's not data received from it
                         defaultDescription: 600
+            shards:
+                type: integer
+                description: how many concurrent tasks harvest data from a single socket; do not set if not sure what it is doing
+    listener-tls:
+        type: object
+        description: describes the special tls socket, used for getting statistics and processing utility requests that should succeed even is the main socket is under heavy pressure
+        additionalProperties: false
+        properties:
+            port:
+                type: integer
+                description: port to listen on
+                defaultDescription: 0
+            unix-socket:
+                type: string
+                description: unix socket to listen on instead of listening on a port
+                defaultDescription: ''
+            max_connections:
+                type: integer
+                description: max connections count to keep
+                defaultDescription: 32768
+            task_processor:
+                type: string
+                description: task processor to process incoming requests
+            backlog:
+                type: integer
+                description: max count of new connections pending acceptance
+                defaultDescription: 1024
+            connection:
+                type: object
+                description: connection options
+                additionalProperties: false
+                properties:
+                    in_buffer_size:
+                        type: integer
+                        description: "size of the buffer to preallocate for request receive: bigger values use more RAM and less CPU"
+                        defaultDescription: 32 * 1024
+                    requests_queue_size_threshold:
+                        type: integer
+                        description: drop requests from handlers that allow throttling if there's more pending requests than allowed by this value
+                        defaultDescription: 100
+                    keepalive_timeout:
+                        type: integer
+                        description: timeout in seconds to drop connection if there's not data received from it
+                        defaultDescription: 600
+            handler-defaults:
+                type: object
+                description: handler defaults options
+                additionalProperties: false
+                properties:
+                    max_url_size:
+                        type: integer
+                        description: max path/URL size in bytes
+                    max_request_size:
+                        type: integer
+                        description: max size of the whole data in bytes
+                    max_headers_size:
+                        type: integer
+                        description: max headers size in bytes
+                    parse_args_from_body:
+                        type: boolean
+                        description: optional field to parse request according to x-www-form-urlencoded rules and make parameters accessible as query parameters
             shards:
                 type: integer
                 description: how many concurrent tasks harvest data from a single socket; do not set if not sure what it is doing
@@ -173,7 +234,7 @@ properties:
                         defaultDescription: 32 * 1024
                     requests_queue_size_threshold:
                         type: integer
-                        description: drop requests from handlers that allow trottling if there's more pending requests than allowed by this value
+                        description: drop requests from handlers that allow throttling if there's more pending requests than allowed by this value
                         defaultDescription: 100
                     keepalive_timeout:
                         type: integer

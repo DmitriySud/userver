@@ -22,11 +22,16 @@ TlsSettings::TlsSettings(const formats::json::Value& doc){
     LOG_WARNING() << "There is no tls settings section it secdist";
     return;
   }
+  
+  key_path_ = settings["private_key"].As<std::string>();
+  cert_path_ = settings["certificate"].As<std::string>();
 
   key_.emplace(crypto::PrivateKey::LoadFromString(
-      settings["private_key"].As<std::string>()));
+        fs::blocking::ReadFileContents(key_path_)
+  ));
   cert_.emplace(crypto::Certificate::LoadFromString(
-      settings["certificate"].As<std::string>()));
+        fs::blocking::ReadFileContents(cert_path_)
+  ));
 }
 
 }  // namespace server::net

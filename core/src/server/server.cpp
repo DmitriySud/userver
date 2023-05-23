@@ -1,3 +1,4 @@
+#include <iostream>
 #include <memory>
 #include <optional>
 #include <userver/server/server.hpp>
@@ -129,13 +130,20 @@ ServerImpl::ServerImpl(ServerConfig config,
     InitPortInfo(monitor_port_info_, config_, *config_.monitor_listener,
                  component_context, PortType::kMonitor);
   }
+    std::cout << "================SASSSSSSIII!!!!!!!!!!!!!!!!!!!!!" <<std::endl;
   if (config_.tls_listener) {
+    std::cout << "start tls listener on port " << config_.tls_listener->port <<std::endl;;
     auto* secdist_component =
         component_context.FindComponentOptional<components::Secdist>();
     tls_settings_ = std::make_unique<net::TlsSettings>(
         secdist_component->Get().Get<net::TlsSettings>());
+    if (tls_settings_){
+      std::cout << "tsl settings loaded" << std::endl;
+    } else {
+      std::cout << "tls settings NOT LOADED" << std::endl;
+    }
 
-    InitPortInfo(monitor_port_info_, config_, *config_.tls_listener,
+    InitPortInfo(tls_port_info_, config_, *config_.tls_listener,
                  component_context, PortType::kSecure);
   }
 
@@ -180,8 +188,10 @@ void ServerImpl::InitPortInfo(
 
   while (listener_shards--) {
     if (port_type == PortType::kSecure){
+      std::cout << "Try start listener"<< std::endl;
       info.listeners_.emplace_back(info.endpoint_info_, task_processor,
                                    info.data_accounter_, tls_settings_.get());
+      std::cout << "Listener started. May be successfull"<< std::endl;
     } else{
       info.listeners_.emplace_back(info.endpoint_info_, task_processor,
                                    info.data_accounter_, nullptr);
@@ -209,6 +219,12 @@ void ServerImpl::StartPortInfos() {
     monitor_port_info_.Start();
   } else {
     LOG_WARNING() << "No 'listener-monitor' in 'server' component";
+  }
+  
+  if (tls_port_info_.request_handler_){
+    tls_port_info_.Start();
+  } else {
+    std::cout << "TLS port not started" <<std::endl;
   }
 
   started_.store(true);

@@ -133,7 +133,6 @@ void Connection::Shutdown() noexcept {
   } else {
     auto* wrapper_ptr = dynamic_cast<engine::io::TlsWrapper*>(rw_interface_.get());
     auto sock = wrapper_ptr->StopTls({});
-    sock.Close();
   }
 
   --stats_->active_connections;

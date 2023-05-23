@@ -5,6 +5,7 @@ logger-level: info
 
 config-server-url: http://localhost:8083/
 server-port: 8085
+tls-server-port: 8095
 monitor-server-port: 8086
 
 testsuite-enabled: false

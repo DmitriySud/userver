@@ -4,6 +4,7 @@
 
 #include <cstdint>
 #include <cstring>
+#include <iostream>
 #include <stdexcept>
 #include <string>
 #include <system_error>
@@ -66,7 +67,9 @@ engine::TaskProcessor& ListenerImpl::GetTaskProcessor() const {
 }
 
 void ListenerImpl::AcceptConnection(engine::io::Socket& request_socket) {
+  std::cout << "Start accepting on " << request_socket.Getsockname().Port()<< std::endl;
   auto peer_socket = request_socket.Accept({});
+  LOG_DEBUG() << "Connection accepted";
 
   auto new_connection_count = ++endpoint_info_->connection_count;
   if (new_connection_count > endpoint_info_->listener_config.max_connections) {

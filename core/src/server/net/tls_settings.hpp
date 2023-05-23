@@ -4,6 +4,7 @@
 #include <userver/formats/json/value.hpp>
 #include "userver/crypto/certificate.hpp"
 #include "userver/crypto/private_key.hpp"
+#include "userver/fs/blocking/read.hpp"
 #include "userver/utils/assert.hpp"
 
 USERVER_NAMESPACE_BEGIN
@@ -24,6 +25,8 @@ public:
     return cert_.value();
   }
 private:
+  std::string key_path_;
+  std::string cert_path_;
   std::optional<const crypto::PrivateKey> key_;
   std::optional<const crypto::Certificate> cert_;
 };

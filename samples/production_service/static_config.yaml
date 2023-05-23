@@ -2,7 +2,7 @@
 
 # /// [Production service sample - static config - config vars]
 # yaml
-config_vars: /etc/production_service/config_vars.yaml
+config_vars: /home/dyusudakov/repos/userver/samples/production_service/config_vars.yaml
 # /// [Production service sample - static config - config vars]
 
 components_manager:
@@ -118,6 +118,17 @@ components_manager:
                 # unix-socket: /var/run/production_service/service.socket
                 port: $server-port
                 port#fallback: 8085
+                connection:
+                    in_buffer_size: 32768
+                    requests_queue_size_threshold: 100
+                task_processor: main-task-processor
+            listener-tls:
+                # If your service is behind nginx or some other local proxy, it is
+                # efficient to accepts incoming requests from unix-socket
+                #
+                # unix-socket: /var/run/production_service/service.socket
+                port: $tls-server-port
+                port#fallback: 8095
                 connection:
                     in_buffer_size: 32768
                     requests_queue_size_threshold: 100

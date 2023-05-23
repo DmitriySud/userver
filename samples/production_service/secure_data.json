@@ -1,1 +1,6 @@
-{}
+{
+  "tls_settings": {
+    "private_key": "/home/dyusudakov/secure-test-data/testing_priv.key",
+    "certificate": "/home/dyusudakov/secure-test-data/testing_cert.crt"
+  }
+}
