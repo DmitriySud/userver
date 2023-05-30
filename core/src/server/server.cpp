@@ -52,7 +52,7 @@ class ServerImpl final {
 
 
   struct PortInfo {
-    std::unique_ptr<http::HttpRequestHandler> request_handler_;
+    std::shared_ptr<http::HttpRequestHandler> request_handler_;
     std::shared_ptr<net::EndpointInfo> endpoint_info_;
     request::ResponseDataAccounter data_accounter_;
     std::vector<net::Listener> listeners_;
@@ -130,7 +130,6 @@ ServerImpl::ServerImpl(ServerConfig config,
     InitPortInfo(monitor_port_info_, config_, *config_.monitor_listener,
                  component_context, PortType::kMonitor);
   }
-    std::cout << "================SASSSSSSIII!!!!!!!!!!!!!!!!!!!!!" <<std::endl;
   if (config_.tls_listener) {
     std::cout << "start tls listener on port " << config_.tls_listener->port <<std::endl;;
     auto* secdist_component =
@@ -175,9 +174,13 @@ void ServerImpl::InitPortInfo(
   engine::TaskProcessor& task_processor =
       component_context.GetTaskProcessor(listener_config.task_processor);
 
-  info.request_handler_ = std::make_unique<http::HttpRequestHandler>(
-      component_context, config.logger_access, config.logger_access_tskv,
-      port_type == PortType::kMonitor, config.server_name);
+  if (port_type != PortType::kSecure) {
+    info.request_handler_ = std::make_shared<http::HttpRequestHandler>(
+        component_context, config.logger_access, config.logger_access_tskv,
+        port_type == PortType::kMonitor, config.server_name);
+  } else {
+    info.request_handler_ = main_port_info_.request_handler_;
+  }
 
   info.endpoint_info_ = std::make_shared<net::EndpointInfo>(
       listener_config, *info.request_handler_);
