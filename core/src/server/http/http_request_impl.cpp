@@ -373,6 +373,12 @@ void HttpRequestImpl::WriteAccessTskvLog(
                   EscapeForAccessTskvLog(RequestBody())));
 }
 
+void HttpRequestImpl::SetHasUpgradeHeaders(bool has_upgrade_headers) {
+  has_upgrade_headers_ = has_upgrade_headers;
+}
+
+bool HttpRequestImpl::HasUpgradeHeaders() const { return has_upgrade_headers_; }
+
 }  // namespace server::http
 
 USERVER_NAMESPACE_END

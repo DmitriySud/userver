@@ -4,6 +4,7 @@
 #include <memory>
 #include <string>
 
+#include <server/http/protocol_manager.hpp>
 #include <server/http/request_handler_base.hpp>
 #include <server/net/connection_config.hpp>
 #include <server/net/stats.hpp>
@@ -77,6 +78,7 @@ class Connection final : public std::enable_shared_from_this<Connection> {
   const request::HttpRequestConfig& handler_defaults_config_;
   engine::io::Socket peer_socket_;
   const http::RequestHandlerBase& request_handler_;
+  std::optional<http::ProtocolManager> protocol_manager_;
   const std::shared_ptr<Stats> stats_;
   request::ResponseDataAccounter& data_accounter_;
   const std::string remote_address_;

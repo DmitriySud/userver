@@ -45,6 +45,7 @@ class HttpRequestConstructor final : public request::RequestConstructor {
   void SetMethod(HttpMethod method);
   void SetHttpMajor(unsigned short http_major);
   void SetHttpMinor(unsigned short http_minor);
+  void SetHasUpgrade();
 
   void AppendUrl(const char* data, size_t size);
   void ParseUrl();

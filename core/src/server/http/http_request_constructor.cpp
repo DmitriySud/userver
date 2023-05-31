@@ -168,6 +168,10 @@ void HttpRequestConstructor::SetIsFinal(bool is_final) {
   request_->is_final_ = is_final;
 }
 
+void HttpRequestConstructor::SetHasUpgrade() {
+  request_->SetHasUpgradeHeaders(true);
+}
+
 std::shared_ptr<request::RequestBase> HttpRequestConstructor::Finalize() {
   LOG_TRACE() << "method=" << request_->GetMethodStr()
               << " orig_method=" << request_->GetOrigMethodStr();

@@ -150,6 +150,7 @@ void Connection::ListenForRequests(Queue::Producer producer) noexcept {
           }
         },
         stats_->parser_stats, data_accounter_);
+    protocol_manager_.emplace(request_parser);
 
     std::vector<char> buf(config_.in_buffer_size);
     std::size_t last_bytes_read = 0;
@@ -190,7 +191,7 @@ void Connection::ListenForRequests(Queue::Producer producer) noexcept {
       LOG_TRACE() << "Received " << last_bytes_read << " byte(s) from "
                   << peer_socket_.Getpeername() << " on fd " << Fd();
 
-      if (!request_parser.Parse(buf.data(), last_bytes_read)) {
+      if (!protocol_manager_->Parse(buf.data(), last_bytes_read)) {
         LOG_DEBUG() << "Malformed request from " << peer_socket_.Getpeername()
                     << " on fd " << Fd();
 
@@ -302,13 +303,14 @@ void Connection::HandleQueueItem(QueueItem& item) noexcept {
 }
 
 void Connection::SendResponse(request::RequestBase& request) {
+  UASSERT(protocol_manager_);
   auto& response = request.GetResponse();
   UASSERT(!response.IsSent());
   request.SetStartSendResponseTime();
   if (is_response_chain_valid_ && peer_socket_) {
     try {
       // Might be a stream reading or a fully constructed response
-      response.SendResponse(peer_socket_);
+      protocol_manager_->SendResponse(peer_socket_, response);
     } catch (const engine::io::IoSystemError& ex) {
       // working with raw values because std::errc compares error_category
       // default_error_category() fixed only in GCC 9.1 (PR libstdc++/60555)

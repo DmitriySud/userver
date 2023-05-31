@@ -115,6 +115,8 @@ inline constexpr char kSetCookie[] = "Set-Cookie";
 /// @name Extra headers
 /// @{
 inline constexpr char kConnection[] = "Connection";
+inline constexpr char kUpgrade[] = "Upgrade";
+inline constexpr char kSecWebSocketsKey[] = "Sec-WebSockets-Key";
 /// @}
 
 /// @name Tracing headers

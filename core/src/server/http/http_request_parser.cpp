@@ -201,9 +201,8 @@ int HttpRequestParser::OnBodyImpl(http_parser* p, const char* data,
 
 int HttpRequestParser::OnMessageCompleteImpl(http_parser* p) {
   UASSERT(request_constructor_);
-  if (p->upgrade) {
-    LOG_WARNING() << "upgrade detected";
-    return -1;  // error
+  if (parser_.upgrade) {
+    request_constructor_->SetHasUpgrade();
   }
   request_constructor_->SetIsFinal(!http_should_keep_alive(p));
   if (!CheckUrlComplete(p)) return -1;
